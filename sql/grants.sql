@@ -1,0 +1,87 @@
+-- =====================================================================================================
+-- sql/grants.sql
+-- Sistema de Gestão Escolar CELEF — usuários do banco e privilégios mínimos (Fase 1)
+--
+-- ATENÇÃO (HostGator compartilhado): a conta não tem privilégio GRANT, então ESTE ARQUIVO NÃO É IMPORTADO
+-- no phpMyAdmin. Os usuários são criados em cPanel → MySQL® Databases. Os comandos abaixo documentam o
+-- resultado esperado e servem para quem instalar em VPS/servidor próprio.
+--
+-- Dois usuários, com papéis distintos:
+--   1) <prefixo>_celef_app   → usado pela aplicação (.env: DB_USER). SELECT, INSERT, UPDATE, EXECUTE. NADA MAIS.
+--                              Sem DELETE, DROP, ALTER, CREATE, INDEX, TRIGGER, REFERENCES, LOCK TABLES, EVENT.
+--   2) <prefixo>_celef_inst  → usado SÓ por você, no phpMyAdmin, para importar schema/triggers/seed e migrar.
+--                              ALL PRIVILEGES no banco do CELEF. A senha não fica em nenhum arquivo do servidor.
+--
+-- O banco e os dois usuários são EXCLUSIVOS do CELEF: não reutilizar banco/usuário de outro projeto da conta.
+-- =====================================================================================================
+
+-- ------------------------------------------------------------------------------------------------
+-- A. PASSO A PASSO NO cPANEL (HostGator) — faça isto, não rode o SQL da seção B
+-- ------------------------------------------------------------------------------------------------
+--  1. cPanel → Bancos de dados → MySQL® Databases.
+--  2. "Criar novo banco de dados": nome  celef  → será criado como <prefixo>_celef.
+--  3. "Usuários MySQL → Adicionar novo usuário":
+--        a) nome  celef_app   | senha: gerar com o botão "Gerador de senha" (mín. 24 caracteres) → anotar no .env
+--        b) nome  celef_inst  | senha: gerar e guardar fora do servidor (gerenciador de senhas)
+--  4. "Adicionar usuário ao banco de dados":
+--        a) <prefixo>_celef_app  →  <prefixo>_celef  →  na tela de privilégios DESMARCAR "TODOS OS PRIVILÉGIOS"
+--           e marcar SOMENTE:   [x] SELECT   [x] INSERT   [x] UPDATE   [x] EXECUTE
+--           Deixar desmarcados: DELETE, CREATE, DROP, ALTER, INDEX, REFERENCES, CREATE TEMPORARY TABLES,
+--           LOCK TABLES, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER.
+--        b) <prefixo>_celef_inst →  <prefixo>_celef  →  marcar "TODOS OS PRIVILÉGIOS".
+--  5. cPanel → Remote MySQL®: NENHUM host liberado (o banco só é acessível pelo próprio servidor).
+--  6. phpMyAdmin → selecionar o banco <prefixo>_celef → aba Importar, nesta ordem:
+--        sql/schema.sql  →  sql/triggers.sql  →  sql/seed.sql
+--     (o phpMyAdmin entra com o usuário do cPanel, que tem privilégios completos; os triggers ficam sem DEFINER,
+--      como exige a hospedagem compartilhada)
+--  7. Conferir com as consultas da seção C.
+
+-- ------------------------------------------------------------------------------------------------
+-- B. EQUIVALENTE EM SQL (referência / VPS). Substitua <prefixo>, <senha_app>, <senha_inst>.
+-- ------------------------------------------------------------------------------------------------
+-- CREATE DATABASE IF NOT EXISTS `<prefixo>_celef` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+--
+-- CREATE USER IF NOT EXISTS '<prefixo>_celef_app'@'localhost' IDENTIFIED BY '<senha_app>';
+-- REVOKE ALL PRIVILEGES, GRANT OPTION FROM '<prefixo>_celef_app'@'localhost';
+-- GRANT SELECT, INSERT, UPDATE, EXECUTE ON `<prefixo>_celef`.* TO '<prefixo>_celef_app'@'localhost';
+--
+-- CREATE USER IF NOT EXISTS '<prefixo>_celef_inst'@'localhost' IDENTIFIED BY '<senha_inst>';
+-- GRANT ALL PRIVILEGES ON `<prefixo>_celef`.* TO '<prefixo>_celef_inst'@'localhost';
+--
+-- FLUSH PRIVILEGES;
+
+-- ------------------------------------------------------------------------------------------------
+-- C. CONFERÊNCIA (rodar no phpMyAdmin depois de importar os três arquivos)
+-- ------------------------------------------------------------------------------------------------
+-- C1. Privilégios do usuário da aplicação (deve mostrar apenas SELECT, INSERT, UPDATE, EXECUTE no banco):
+--     SHOW GRANTS FOR '<prefixo>_celef_app'@'localhost';
+--
+-- C2. Tabelas e triggers criados (esperado: 72 tabelas, 150 triggers):
+--     SELECT COUNT(*) AS tabelas FROM information_schema.tables   WHERE table_schema = DATABASE();
+--     SELECT COUNT(*) AS triggers FROM information_schema.triggers WHERE trigger_schema = DATABASE();
+--
+-- C3. Triggers de proteção da auditoria presentes (esperado: 3 linhas: trg_audit_log_bi, _bu, _bd):
+--     SELECT trigger_name, event_manipulation FROM information_schema.triggers
+--      WHERE trigger_schema = DATABASE() AND event_object_table = 'audit_log' ORDER BY trigger_name;
+--
+-- C4. Gênese da cadeia de hash (esperado: 1 linha, prev_hash com 64 zeros, origin = SEED):
+--     SELECT id, occurred_at, action, origin, prev_hash, hash FROM audit_log ORDER BY id LIMIT 3;
+--
+-- C5. Super Administrador inicial:
+--     SELECT u.email, r.code, u.is_active FROM users u JOIN roles r ON r.id = u.role_id;
+--
+-- C6. Teste de imutabilidade (DEVE FALHAR com a mensagem do trigger — é o comportamento correto):
+--     UPDATE audit_log SET summary = 'teste' WHERE id = 1;
+--     DELETE FROM students WHERE id = 0;
+--
+-- C7. Nenhum evento FORA_DA_APLICACAO gerado pela instalação (esperado: 0):
+--     SELECT COUNT(*) FROM security_events WHERE kind = 'FORA_DA_APLICACAO';
+
+-- ------------------------------------------------------------------------------------------------
+-- D. POR QUE A IMUTABILIDADE NÃO DEPENDE DOS PRIVILÉGIOS
+-- ------------------------------------------------------------------------------------------------
+-- O cPanel só concede privilégios por banco (não por tabela). Como a app precisa de UPDATE em students,
+-- ela também teria UPDATE em audit_log. Por isso os triggers trg_*_bu / trg_*_bd (sql/triggers.sql) bloqueiam
+-- UPDATE/DELETE nas tabelas somente-inclusão e DELETE em todas as tabelas de negócio, para QUALQUER usuário,
+-- inclusive o de instalação. Remover um trigger exige o usuário de instalação e é detectado por
+-- cron/verify_audit.php (campo triggers_ok em audit_verification_runs) com alerta aos administradores.

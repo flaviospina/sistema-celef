@@ -1,8 +1,9 @@
 # Fase 1 — Modelagem do banco de dados
 **Sistema de Gestão Escolar CELEF** · Centro de Estudos de Línguas do Ensino Fundamental · SME São Caetano do Sul
 
-> Documento de aprovação. Nada de SQL foi gerado ainda: os arquivos `sql/schema.sql`, `sql/triggers.sql`,
-> `sql/grants.sql` e `sql/seed.sql` serão escritos **depois do seu "ok"** a esta modelagem.
+> Modelagem aprovada em 26/11/2026 (versão detalhada). Os arquivos `sql/schema.sql`, `sql/triggers.sql`,
+> `sql/grants.sql` e `sql/seed.sql` foram gerados e testados em MariaDB 10.11 (`tools/test_sql.sh`, 65 verificações).
+> Ajustes feitos durante os testes estão marcados com **[ajuste]**.
 
 ---
 
@@ -244,6 +245,7 @@ erDiagram
 ## 4. Catálogo de tabelas
 
 Legenda: 🔒 = contém campos cifrados · 📜 = tem `*_history` · 🚫 = append-only (triggers bloqueiam UPDATE e DELETE).
+Total: **49 tabelas** + **23 `*_history`** = 72 tabelas, 150 triggers.
 Colunas padrão (§2) omitidas para encurtar.
 
 ### 4.1 Identidade, acesso e sessão
@@ -273,10 +275,10 @@ Colunas padrão (§2) omitidas para encurtar.
 |---|---|---|
 | `audit_log` 🚫 | trilha imutável com cadeia de hash | `occurred_at DATETIME(6)` UTC, `user_id`, `user_email`, `role_code`, `action` (ver lista no §5.2), `entity`, `entity_id`, `summary VARCHAR(300)`, `diff_json LONGTEXT` (mascarado), `ip`, `user_agent VARCHAR(300)`, `request_id CHAR(32)`, `session_hash CHAR(64)`, `origin`, `prev_hash CHAR(64)`, `hash CHAR(64)`. Índices: (`occurred_at`), (`user_id`,`occurred_at`), (`entity`,`entity_id`), (`action`,`occurred_at`) |
 | `audit_anchor` 🚫 | âncora diária | `anchor_date` UK, `last_audit_id` FK, `last_hash`, `row_count`, `created_at` |
-| `audit_verification_runs` 🚫 | resultado do `cron/verify_audit.php` | `started_at`, `finished_at`, `from_id`, `to_id`, `rows_checked`, `result` (`OK`/`QUEBRA`), `first_broken_id`, `detail` |
+| `audit_verification_runs` 🚫 | resultado do `cron/verify_audit.php` (UPDATE permitido só nos campos de resultado; **[ajuste]** coluna `triggers_ok`) | `started_at`, `finished_at`, `from_id`, `to_id`, `rows_checked`, `result` (`OK`/`QUEBRA`), `first_broken_id`, `detail` |
 | `security_events` | alertas e detecções | `occurred_at`, `severity` (`INFO`/`AVISO`/`CRITICO`), `kind` (`LOGIN_NEGADO_REPETIDO`, `LEITURA_MASSIVA`, `ALTERACAO_EXTERNA_PLANILHA`, `FORA_DA_APLICACAO`, `QUEBRA_HASH`, `FALHA_SYNC`, `FALHA_LOG_PLANILHA`, `TOKEN_GOOGLE_INVALIDO`, `EXPORTACAO`, `ACAO_ADMIN`…), `user_id`, `entity`, `entity_id`, `detail_json`, `audit_log_id`, `alert_sent_at`, `acknowledged_at`, `acknowledged_by` |
 | `alert_outbox` | fila de e-mails aos administradores | `kind`, `recipients_json`, `subject`, `body_text`, `body_html`, `security_event_id`, `status` (`PENDING`/`SENT`/`FAILED`), `attempts`, `next_attempt_at`, `last_error`, `sent_at` |
-| `exports` 🚫 | registro de exportações | `user_id`, `kind` (`CSV`/`PDF`/`XLSX`), `entity`, `filters_json`, `record_count`, `reason`, `watermark_id CHAR(16)`, `file_sha256`, `requires_approval`, `approved_by`, `approved_at`, `audit_log_id` |
+| `exports` 🚫 | registro de exportações (**[ajuste]** UPDATE permitido só em `approved_by`, `approved_at`, `file_sha256`, `audit_log_id`) | `user_id`, `kind` (`CSV`/`PDF`/`XLSX`), `entity`, `filters_json`, `record_count`, `reason`, `watermark_id CHAR(16)`, `file_sha256`, `requires_approval`, `approved_by`, `approved_at`, `audit_log_id` |
 | `cron_runs` | execução de cada job (detecta "parado há > 30 min") | `job_name`, `started_at`, `finished_at`, `status`, `summary`, `error` |
 | `backups` | backups cifrados e teste de restauração | `kind` (`DIARIO`/`MANUAL`), `file_name`, `size_bytes`, `sha256`, `drive_file_id`, `status`, `error`, `restore_tested_at`, `restore_tested_by`, `restore_result` |
 
@@ -302,7 +304,7 @@ Colunas padrão (§2) omitidas para encurtar.
 | Tabela | Finalidade | Colunas específicas |
 |---|---|---|
 | `school_years` 📜 | ano letivo | `year` PK (2026, 2027…), `is_current`, `starts_on`, `ends_on`, `label` |
-| `classes` 📜 | turmas | `school_year` FK, `grade` (1–9), `letter` (A–M), `code` UK (gerado `CONCAT(grade,letter,'/',school_year)`), `weekday` (1–7), `starts_at`, `ends_at`, `teacher_user_id` FK, `classroom_email`, `classroom_id`, `room`, `status` (`ATIVA`/`ENCERRADA`), `capacity` |
+| `classes` 📜 | turmas | `school_year` FK, `grade` (1–9), `letter` (A–M), `code` UK (**[ajuste]** montado pelo trigger, pois o MariaDB recusa `CONCAT` em coluna gerada; UK extra em `school_year`+`grade`+`letter`), `weekday` (1–7), `starts_at`, `ends_at`, `teacher_user_id` FK, `classroom_email`, `classroom_id`, `room`, `status` (`ATIVA`/`ENCERRADA`), `capacity` |
 | `students` 🔒📜 | ficha do aluno (uma linha por pessoa) | ver diagrama §3.1. Detalhes: `full_name_norm` (sem acento, maiúsculo, para busca), `school_email` UK (e-mail do aluno @scseduca), `ra_bidx` UK, `cpf_bidx` UK, `birth_year SMALLINT` (plano, só para indicadores), `image_consent` (denormalizado de `image_consents`), `photo_attachment_id` FK, `origin_school` (ESCOLA), `group_name` (GRUPO), `status`, `social_media_enc` (⚠️ campo a revisar com a direção), `health_notes_enc`, `physical_education_enc`, `dentistry_enc`, `source_row_key` (chave original da planilha) |
 | `image_consents` 🚫 | autorização de imagem versionada | `student_id`, `consented` (0/1), `term_version`, `recorded_at`, `recorded_by`, `source` (`APP`/`PLANILHA`), `notes` |
 | `enrollments` 📜 | matrícula do aluno na turma, por ano | ver diagrama. `active_key BIGINT GENERATED ALWAYS AS (IF(status='ATIVA', student_id, NULL)) STORED` + UK (`active_key`,`school_year`) → **impossível** aluno ativo em duas turmas no mesmo ano; UK (`class_id`,`roll_number`) parcial via `roll_key` gerada da mesma forma |
@@ -316,10 +318,10 @@ Colunas padrão (§2) omitidas para encurtar.
 | `attachments` 🔒📜 | arquivos cifrados em `storage/` | `owner_entity`, `owner_id`, `kind` (`FOTO`/`ATESTADO`/`LAUDO`/`JUSTIFICATIVA`/`MARCA`), `original_name_enc`, `stored_name` (aleatório), `mime_type` (validado pelo conteúdo), `size_bytes`, `sha256`, `key_version`, `uploaded_by` |
 | `staff` 🔒📜 | servidores/funcionários | `user_id` FK NULL, `full_name`, `job_title`, `registration_enc` (matrícula funcional), `phone_enc`, `work_email`, `status`, `started_on`, `ended_on` |
 | `declaration_templates` 📜 | modelos de declaração | `code` UK, `name`, `body_html`, `version`, `is_active` |
-| `declarations` 🚫 | declarações emitidas | `student_id`, `template_id`, `template_version`, `control_number` UK (`2026-000123`), `verification_token_hash CHAR(64)` (QR), `payload_json` (snapshot dos dados impressos), `pdf_sha256`, `issued_at`, `issued_by`, `revoked_at`, `revoked_by`, `revoke_reason` |
+| `declarations` 🚫 | declarações emitidas (**[ajuste]** UPDATE permitido só em `revoked_*` e `pdf_sha256`) | `student_id`, `template_id`, `template_version`, `control_number` UK (`2026-000123`), `verification_token_hash CHAR(64)` (QR), `payload_json` (snapshot dos dados impressos), `pdf_sha256`, `issued_at`, `issued_by`, `revoked_at`, `revoked_by`, `revoke_reason` |
 | `branding_assets` 📜 | identidade visual trocável no admin | `kind` (`LOGO`/`LOGO_BRANCO`/`FACHADA`/`FAVICON`), `attachment_id`, `is_active`, `palette_json` (cores extraídas do logo) |
 
-Tabelas `*_history` geradas (22): `users`, `user_class_assignments`, `blocked_email_patterns`, `settings`,
+Tabelas `*_history` geradas (23): `roles`, `users`, `user_class_assignments`, `blocked_email_patterns`, `settings`,
 `google_credentials`, `connected_sheets`, `connected_sheet_tabs`, `sheet_column_map`, `school_years`, `classes`,
 `students`, `enrollments`, `class_transfers`, `withdrawals`, `school_transfers`, `diary_lessons`,
 `diary_attendance`, `student_documents`, `attachments`, `staff`, `declaration_templates`, `branding_assets`.
@@ -404,12 +406,19 @@ Tabelas `*_history` geradas (22): `users`, `user_class_assignments`, `blocked_em
 
 ---
 
-## 7. Próximo passo
+## 7. Arquivos gerados
 
-Com o seu **"ok"** (e eventuais ajustes às premissas do §6) gero, completos:
+Com a aprovação da versão detalhada foram gerados e testados:
 
 - `sql/schema.sql` — todas as tabelas acima e as `*_history`, idempotente (`IF NOT EXISTS`);
 - `sql/triggers.sql` — hash da auditoria, bloqueios de UPDATE/DELETE, versionamento, detecção `FORA_DA_APLICACAO`;
 - `sql/grants.sql` — usuários `celef_app`/`celef_install` para referência + roteiro cPanel;
 - `sql/seed.sql` — perfis, permissões, padrões de e-mail bloqueados, configurações iniciais, aviso de
-  privacidade v1 e o Super Administrador `flaviospina@scseduca.com.br`.
+  privacidade v1 e o Super Administrador `flaviospina@scseduca.com.br`;
+- `tools/gen_sql.py` + `tools/schema.template.sql` — gerador das tabelas `*_history` e dos triggers (ferramenta de
+  desenvolvimento; o resultado já está nos arquivos acima);
+- `tools/test_sql.sh` — roteiro de 65 verificações executado num MariaDB local.
+
+**[ajuste]** Regras adicionais implementadas em trigger durante a Fase 1: normalização de `users.email`
+(minúsculo), `classes.letter` em maiúsculo, bloqueio de INSERT já excluído, restauração limpa `deleted_by`/`delete_reason`,
+e a proteção do último Super Administrador ativo também no banco (não só na app).
