@@ -48,6 +48,14 @@ ServerSignature Off
     </FilesMatch>
 </IfModule>
 
+# ---- Página estática de retorno do Google: nunca em cache -----------------------------------------
+<IfModule mod_headers.c>
+    <FilesMatch "^callback\.html$">
+        Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+        Header always set X-LiteSpeed-Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>
+
 # ---- Sem listagem de diretórios -----------------------------------------------------------------------
 Options -Indexes -MultiViews
 

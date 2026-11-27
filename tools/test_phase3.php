@@ -28,17 +28,21 @@ final class Browser {
     public function post(string $u, array $data, bool $follow = true): string {
         global $BASE; $data['_csrf'] = $this->csrf(); return $this->req('POST', $u, $data, $follow, ['Origin: ' . $BASE]);
     }
+    /** Faz o que o JS de callback.html faria: lê code/state do fragmento (ou da query) do último Location e chama o callback PHP. */
+    public function forwardCallback(): void {
+        global $BASE;
+        if (!preg_match_all('~^Location:\s*(\S*callback\.html[#?]\S+)~mi', $this->headers, $m)) { return; }
+        $loc = end($m[1]);
+        $raw = str_contains($loc, '#') ? substr($loc, strpos($loc, '#') + 1) : (string) parse_url($loc, PHP_URL_QUERY);
+        parse_str($raw, $q);
+        $this->get("$BASE/auth/google/callback?" . http_build_query(array_intersect_key($q, array_flip(['code', 'state', 'error']))));
+    }
     public function csrf(): string { return preg_match('/name="_csrf" value="([a-f0-9]{64})"/', $this->body, $m) ? $m[1] : ''; }
     public function has(string $needle): bool { return str_contains($this->body, $needle); }
     public function login(array $user): string {
         global $BASE, $MOCK; @mkdir($MOCK, 0700, true); file_put_contents("$MOCK/user.json", json_encode($user));
         $this->get("$BASE/login"); $this->post("$BASE/login/google", []);
-        // o emulador devolve para callback.html (estática); aqui fazemos o que o JS da página faria
-        if (str_contains($this->lastUrl, '/auth/google/callback.html?')) {
-            parse_str((string) parse_url($this->lastUrl, PHP_URL_QUERY), $q);
-            $fwd = array_intersect_key($q, array_flip(['code', 'state', 'error']));
-            $this->get("$BASE/auth/google/callback?" . http_build_query($fwd));
-        }
+        $this->forwardCallback();
         return $this->body;
     }
 }
@@ -50,7 +54,7 @@ $b->get("$BASE/login");
 ok($b->status === 200 && $b->has('Entrar com Google') && $b->csrf() !== '', 'página de login com formulário e token CSRF');
 $b->login($superUser);
 $authReq = json_decode((string) file_get_contents("$MOCK/last_auth_request.json"), true);
-ok(str_ends_with((string) $authReq['redirect_uri'], '/auth/google/callback.html'), 'redirect_uri é a página estática callback.html');
+ok(str_ends_with((string) $authReq['redirect_uri'], '/auth/google/callback.html') && ($authReq['response_mode'] ?? '') === 'fragment', 'redirect_uri é a página estática callback.html e response_mode=fragment');
 ok(($authReq['code_challenge_method'] ?? '') === 'S256' && ($authReq['hd'] ?? '') === 'scseduca.com.br' && !empty($authReq['nonce']) && !empty($authReq['state']), 'pedido ao Google com PKCE S256, hd, nonce e state');
 ok(str_ends_with($b->lastUrl, '/privacidade/aceite') && $b->has('Aviso de privacidade'), 'primeiro acesso cai no aceite do aviso de privacidade');
 $b->post("$BASE/privacidade/aceite", ['ciente' => '1']);
@@ -187,10 +191,7 @@ sleep(1);
 $a->get("$BASE/admin/usuarios");
 ok(str_ends_with($a->lastUrl, '/reauth') && $a->has('Confirme sua identidade'), 'admin com login "antigo" é levado à reautenticação');
 $a->post("$BASE/reauth", []);
-if (str_contains($a->lastUrl, '/auth/google/callback.html?')) {
-    parse_str((string) parse_url($a->lastUrl, PHP_URL_QUERY), $q);
-    $a->get("$BASE/auth/google/callback?" . http_build_query(array_intersect_key($q, array_flip(['code', 'state', 'error']))));
-}
+$a->forwardCallback();
 ok(str_contains($a->lastUrl, '/admin/usuarios'), 'reautenticação no Google concluída e retorno ao destino');
 ok(Database::value("SELECT action FROM audit_log WHERE action = 'REAUTH' ORDER BY id DESC LIMIT 1") === 'REAUTH', 'auditoria REAUTH gravada');
 $authReq = json_decode((string) file_get_contents("$MOCK/last_auth_request.json"), true);

@@ -32,7 +32,9 @@ switch (true) {
         file_put_contents("$dir/code-$code.json", json_encode($_GET));
         file_put_contents("$dir/last_auth_request.json", json_encode($_GET));
         header('Content-Type: text/html');
-        header('Location: ' . $_GET['redirect_uri'] . '?' . http_build_query(['code' => $code, 'state' => $_GET['state']]), true, 302);
+        // como o Google real: acrescenta iss (URL) e scope; separador conforme response_mode
+        $sep = (($_GET['response_mode'] ?? 'query') === 'fragment') ? '#' : '?';
+        header('Location: ' . $_GET['redirect_uri'] . $sep . http_build_query(['state' => $_GET['state'], 'code' => $code, 'scope' => 'email profile openid https://www.googleapis.com/auth/userinfo.email', 'authuser' => '0', 'hd' => 'scseduca.com.br', 'prompt' => 'none', 'iss' => $base]), true, 302);
         break;
     case $path === '/token':
         $code = (string) ($_POST['code'] ?? '');

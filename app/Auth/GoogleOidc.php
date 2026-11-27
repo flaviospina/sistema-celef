@@ -31,8 +31,8 @@ final class GoogleOidc
     }
 
     /**
-     * redirect_uri registrado no Google: a página ESTÁTICA public/auth/google/callback.html, que encaminha
-     * code/state ao callback PHP (ver comentário na própria página: ModSecurity e SameSite=Strict).
+     * redirect_uri registrado no Google: a página ESTÁTICA public/auth/google/callback.html, que lê o fragmento
+     * (response_mode=fragment) e encaminha code/state ao callback PHP (ver comentário na própria página).
      */
     public static function redirectUri(): string
     {
@@ -73,6 +73,8 @@ final class GoogleOidc
             'code_challenge'        => self::codeChallenge($p['code_verifier']),
             'code_challenge_method' => 'S256',
             'hd'                    => self::hostedDomain(),
+            // fragment: o retorno vem após "#" e não chega ao servidor (ver public/auth/google/callback.html)
+            'response_mode'         => 'fragment',
             'access_type'           => 'online',
             'prompt'                => $p['prompt'] ?? 'select_account',
         ];

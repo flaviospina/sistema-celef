@@ -9,7 +9,8 @@ Entregue em 27/11/2026. Testada ponta a ponta com um emulador local do OpenID Co
 1. `GET /login` → formulário com CSRF → `POST /login/google`.
 2. `Auth::beginGoogleFlow`: `state`, `nonce`, `code_verifier` gerados; `oauth_states` recebe os hashes e o verifier cifrado;
    o hash do `state` também vai para a sessão PHP (o navegador que começou é o único que conclui).
-3. Google → `GET /auth/google/callback?code&state`: state conferido com a sessão e com o banco (uso único, 10 min),
+3. Google → `callback.html#code&state&iss…` (página estática; `response_mode=fragment`, nada chega ao servidor) →
+   o script da página navega para `GET /auth/google/callback?code&state`: state conferido com a sessão e com o banco (uso único, 10 min),
    troca do código com `code_verifier`, ID Token verificado (assinatura RS256 via JWKS, `iss`, `aud`, `azp`, `exp`, `iat`, `nonce`).
 4. Regras do Workspace: `hd == scseduca.com.br`, `email_verified`, e-mail do domínio. Depois: padrões bloqueados,
    allowlist (`users`), ativo, `google_sub` igual ao registrado.
@@ -37,3 +38,15 @@ Entregue em 27/11/2026. Testada ponta a ponta com um emulador local do OpenID Co
   para as consultas das fases 6 a 8; nunca filtrar só na tela.
 - **Nomes de campo com ponto** (`diary.edit_days`) chegam ao PHP com sublinhado; o controller de configurações
   faz a conversão.
+
+## Ajustes feitos na publicação (HostGator, 27/11/2026)
+
+| Sintoma no servidor real | Causa | Correção |
+|---|---|---|
+| 419 ao clicar em "Entrar com Google" | `Referrer-Policy: no-referrer` faz o Chrome enviar `Origin: null` até em POST do próprio site | política `same-origin`; verificação de origem usa `Sec-Fetch-Site`, depois `Origin`, depois `Referer` |
+| 406 "Mod_Security" no retorno do Google | regra do WAF contra parâmetro com URL (`iss=https://accounts.google.com`), também para `.html`/`.js` | `response_mode=fragment` + página estática `callback.html` que encaminha só `code`/`state` |
+| Cookie `SameSite=Strict` não acompanharia o retorno vindo do Google | navegação entre sites | a navegação final parte da nossa página estática (mesmo site) |
+| `STATUS_TOKEN` "não definido" | linha vazia duplicada no fim do `.env` | o leitor ignora valor vazio quando a chave já tem valor |
+
+Validado em Chromium real (`tools/test_phase3_browser.js`) com o emulador do Google em outro site e devolvendo `iss` e
+`scope` como o Google faz.
