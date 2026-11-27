@@ -128,9 +128,9 @@ final class SystemController extends Controller
         } catch (\Throwable $e) {
             $checks[] = ['item' => 'Banco de dados', 'ok' => false, 'info' => 'sem conexão: verifique DB_HOST, DB_NAME, DB_USER e DB_PASS no .env e se o usuário foi adicionado ao banco no cPanel'];
         }
-        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        $host = strtolower(preg_replace('/:\d+$/', '', (string) ($_SERVER['HTTP_HOST'] ?? '')) ?? '');
         $base = (string) (Config::get('BASE_URL', '') ?? '');
-        $baseHost = (string) (parse_url($base, PHP_URL_HOST) ?: '');
+        $baseHost = strtolower((string) (parse_url($base, PHP_URL_HOST) ?: ''));
         $checks[] = ['item' => 'BASE_URL', 'ok' => $base !== '' && strcasecmp($baseHost, $host) === 0,
             'info' => $base === '' ? 'vazio no .env' : ($baseHost === $host ? $base : "{$base} não corresponde ao endereço acessado ({$host})")];
         return $checks;
