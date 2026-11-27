@@ -25,6 +25,17 @@ final class GoogleOidc
         return Config::require('GOOGLE_CLIENT_ID');
     }
 
+    /** Cliente OAuth da conta técnica (pode ser o mesmo do login: basta não definir GOOGLE_TECH_* no .env). */
+    public static function techClientId(): string
+    {
+        return Config::get('GOOGLE_TECH_CLIENT_ID') ?? self::clientId();
+    }
+
+    public static function techClientSecret(): string
+    {
+        return Config::get('GOOGLE_TECH_CLIENT_SECRET') ?? Config::require('GOOGLE_CLIENT_SECRET');
+    }
+
     public static function hostedDomain(): string
     {
         return strtolower(Config::get('GOOGLE_HOSTED_DOMAIN', 'scseduca.com.br') ?? 'scseduca.com.br');
@@ -64,21 +75,21 @@ final class GoogleOidc
     // ---- URL de autorização --------------------------------------------------------------------------------
 
     /**
-     * @param array{state:string,nonce:string,code_verifier:string,prompt?:string,max_age?:int,login_hint?:string} $p
+     * @param array{state:string,nonce:string,code_verifier:string,prompt?:string,max_age?:int,login_hint?:string,scope?:string,access_type?:string,client_id?:string} $p
      */
     public static function authorizationUrl(array $p): string
     {
         $params = [
-            'client_id'             => self::clientId(),
+            'client_id'             => $p['client_id'] ?? self::clientId(),
             'redirect_uri'          => self::redirectUri(),
             'response_type'         => 'code',
-            'scope'                 => 'openid email profile',
+            'scope'                 => $p['scope'] ?? 'openid email profile',
             'state'                 => $p['state'],
             'nonce'                 => $p['nonce'],
             'code_challenge'        => self::codeChallenge($p['code_verifier']),
             'code_challenge_method' => 'S256',
             'hd'                    => self::hostedDomain(),
-            'access_type'           => 'online',
+            'access_type'           => $p['access_type'] ?? 'online',
             'prompt'                => $p['prompt'] ?? 'select_account',
         ];
         if (isset($p['max_age'])) {
@@ -92,13 +103,13 @@ final class GoogleOidc
 
     // ---- troca do código -----------------------------------------------------------------------------------
 
-    /** @return array{id_token:string,access_token?:string} */
-    public static function exchangeCode(string $code, string $codeVerifier): array
+    /** @return array{id_token:string,access_token?:string,refresh_token?:string,scope?:string} */
+    public static function exchangeCode(string $code, string $codeVerifier, ?string $clientId = null, ?string $clientSecret = null): array
     {
         $body = http_build_query([
             'code'          => $code,
-            'client_id'     => self::clientId(),
-            'client_secret' => Config::require('GOOGLE_CLIENT_SECRET'),
+            'client_id'     => $clientId ?? self::clientId(),
+            'client_secret' => $clientSecret ?? Config::require('GOOGLE_CLIENT_SECRET'),
             'redirect_uri'  => self::redirectUri(),
             'grant_type'    => 'authorization_code',
             'code_verifier' => $codeVerifier,
@@ -118,8 +129,9 @@ final class GoogleOidc
      * Verifica assinatura e claims. Retorna o payload. Lança RuntimeException com motivo (para o log).
      * @return array<string,mixed>
      */
-    public static function verifyIdToken(string $jwt, string $expectedNonce): array
+    public static function verifyIdToken(string $jwt, string $expectedNonce, ?string $clientId = null): array
     {
+        $clientId ??= self::clientId();
         $parts = explode('.', $jwt);
         if (count($parts) !== 3) {
             throw new \RuntimeException('ID Token malformado.');
@@ -148,11 +160,11 @@ final class GoogleOidc
             throw new \RuntimeException('Emissor (iss) do ID Token inválido.');
         }
         $aud = $payload['aud'] ?? null;
-        $audOk = is_array($aud) ? in_array(self::clientId(), $aud, true) : $aud === self::clientId();
+        $audOk = is_array($aud) ? in_array($clientId, $aud, true) : $aud === $clientId;
         if (!$audOk) {
             throw new \RuntimeException('Audiência (aud) do ID Token não é este sistema.');
         }
-        if (isset($payload['azp']) && $payload['azp'] !== self::clientId()) {
+        if (isset($payload['azp']) && $payload['azp'] !== $clientId) {
             throw new \RuntimeException('azp do ID Token não é este sistema.');
         }
         if (!isset($payload['exp']) || (int) $payload['exp'] < $now - self::LEEWAY) {

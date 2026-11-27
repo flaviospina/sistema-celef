@@ -14,7 +14,7 @@ $secoes = [
   'identidade'      => ['Identidade visual', '/admin/identidade-visual', $can('admin.identidade_visual')],
   'lixeira'         => ['Lixeira', '/admin/lixeira', $can('admin.lixeira')],
 ];
-$disponiveis = ['inicio', 'usuarios', 'administradores', 'perfis', 'auditoria', 'seguranca', 'configuracoes'];
+$disponiveis = ['inicio', 'usuarios', 'administradores', 'perfis', 'conta_tecnica', 'planilhas', 'planilha_logs', 'auditoria', 'seguranca', 'configuracoes'];
 ob_start(); ?>
 <div class="row g-4">
   <aside class="col-lg-3 col-xl-2">

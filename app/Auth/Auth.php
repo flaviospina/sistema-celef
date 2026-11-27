@@ -177,6 +177,9 @@ final class Auth
         SecureSession::set('oauth_nonce', $nonce);
 
         $params = ['state' => $state, 'nonce' => $nonce, 'code_verifier' => $verifier];
+        if ($purpose === 'TECH_ACCOUNT') {
+            $params += \App\Google\TechAccount::authParams();
+        }
         if ($purpose === 'REAUTH') {
             $params['prompt'] = 'login';
             $params['max_age'] = 0;
@@ -220,11 +223,34 @@ final class Auth
         }
 
         $verifier = (string) Crypto::decrypt($row['code_verifier_enc'], 'oauth_states.code_verifier');
+        $isTech = $row['purpose'] === 'TECH_ACCOUNT';
         try {
-            $tokens = GoogleOidc::exchangeCode($code, $verifier);
-            $claims = GoogleOidc::verifyIdToken($tokens['id_token'], $nonce);
+            if ($isTech) {
+                $tokens = GoogleOidc::exchangeCode($code, $verifier, GoogleOidc::techClientId(), GoogleOidc::techClientSecret());
+                $claims = GoogleOidc::verifyIdToken($tokens['id_token'], $nonce, GoogleOidc::techClientId());
+            } else {
+                $tokens = GoogleOidc::exchangeCode($code, $verifier);
+                $claims = GoogleOidc::verifyIdToken($tokens['id_token'], $nonce);
+            }
         } catch (\RuntimeException $e) {
+            if ($isTech) {
+                SecureSession::flash('danger', 'Não foi possível concluir a autorização da conta técnica: ' . $e->getMessage());
+                return '/admin/conta-tecnica';
+            }
             self::deny(null, 'TOKEN_INVALIDO', $e->getMessage());
+        }
+
+        // Conexão da conta técnica: quem está logado no sistema continua sendo o Super Admin; a conta Google autorizada é a celef@
+        if ($isTech) {
+            $actor = self::user();
+            if ($actor === null || (int) $actor['id'] !== (int) $row['user_id'] || $actor['role_code'] !== 'SUPER_ADMIN') {
+                throw HttpException::forbidden('A conexão da conta técnica precisa ser concluída pelo mesmo Super Administrador que a iniciou.');
+            }
+            $problem = GoogleOidc::workspaceDenialReason($claims) !== null
+                ? 'A conta escolhida não é uma conta verificada do domínio ' . GoogleOidc::hostedDomain() . '.'
+                : \App\Google\TechAccount::completeConnect($claims, $tokens, $actor);
+            SecureSession::flash($problem === null ? 'success' : 'danger', $problem ?? 'Conta técnica conectada. O token de renovação foi gravado cifrado e nunca é exibido.');
+            return '/admin/conta-tecnica';
         }
 
         $email = strtolower(trim((string) ($claims['email'] ?? '')));

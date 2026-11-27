@@ -207,7 +207,86 @@ enquanto isso, troque a extensão em `GoogleOidc::RETURN_PATH` por outra da list
 
 ---
 
-## 5. Próximas fases
+## 5. Fase 4 — Conta técnica, planilhas conectadas e planilha de logs
 
-Fase 4 (cliente Google), 5 (sincronização), 6–10 (módulos),
+### 5.1 O que foi entregue
+
+| Arquivo | Conteúdo |
+|---|---|
+| `app/Google/GoogleOAuthToken.php` | access token da conta técnica: renovação pelo refresh token (conta `celef@`) ou por JWT (Service Account); cache cifrado; ao receber `invalid_grant` marca a credencial como inválida e alerta |
+| `app/Google/GoogleJwt.php` | Service Account: JWT RS256 assinado com `openssl_sign` |
+| `app/Google/GoogleHttp.php` | chamadas REST com cURL, retentativa exponencial em 429/5xx, renovação automática em 401 |
+| `app/Google/SheetsClient.php` | `metadata`, `get`, `batchGet`, `append`, `batchUpdateValues`, `batchUpdate`, proteção de intervalo, **proteção contra injeção de fórmula** (apóstrofo + `valueInputOption=RAW`) |
+| `app/Google/DriveClient.php` | dono, último editor e revisões do arquivo (`revisions.list`) |
+| `app/Google/TechAccount.php` | conexão da conta técnica por OAuth (escopos `spreadsheets` e `drive.metadata.readonly`) |
+| `app/Google/SheetLogger.php` | cria as 7 abas (cabeçalho congelado, aba protegida), envia a fila `sheet_log_outbox`, confere planilha × banco |
+| `app/controllers/Admin/TechAccountController.php`, `SheetsController.php`, `LogSheetController.php` | telas Conta técnica, Planilhas conectadas e Planilha de logs |
+| `cron/flush_sheet_log.php` | envio da fila a cada 5 minutos |
+
+### 5.2 Ativar as APIs no Google Cloud (uma vez)
+
+No projeto "Sistema CELEF": **APIs e serviços → Biblioteca** → procurar e **Ativar**:
+
+1. **Google Sheets API**
+2. **Google Drive API**
+
+Não é preciso criar outra credencial nem outro URI: a conta técnica usa o mesmo cliente OAuth e o mesmo retorno
+(`…/auth/google/retorno.css`) do login.
+
+### 5.3 Conectar a conta técnica (`celef@scseduca.com.br`)
+
+1. Entre no sistema com a **sua** conta e abra **Admin → Conta técnica Google**.
+2. Clique em **Conectar conta Google**. Na tela do Google escolha **celef@scseduca.com.br** (se ela não aparecer, use
+   "Usar outra conta" e entre com a senha da celef@) e marque **todas** as permissões.
+3. Você volta ao sistema ainda logado como você; a página mostra "Conectada · celef@scseduca.com.br". Clique em **Testar**.
+
+O token de renovação fica cifrado no banco e nunca é exibido. Se a senha da celef@ for trocada ou o acesso revogado,
+o sistema marca "Autorização inválida", alerta os administradores e as filas aguardam até você clicar em **Reconectar**.
+
+### 5.4 Planilha de logs e segurança
+
+1. Logado no Google como **celef@**, crie uma planilha vazia (ex.: "CELEF • LOGS E SEGURANÇA").
+2. No sistema, **Admin → Planilha de logs** → cole o link → **Definir planilha de logs** → **Testar escrita**.
+   O sistema cria as abas `AUDITORIA`, `ACESSOS`, `SEGURANCA`, `ADMIN`, `SINCRONIZACAO`, `EXPORTACOES`, `ANCORAS`,
+   congela e protege, e envia tudo o que estava na fila.
+3. Compartilhamento da planilha: **Editor só a celef@**; **Leitor** para a direção e para você; mais ninguém.
+4. **Conferir planilha de logs × banco**: aponta linhas apagadas, alteradas ou inventadas na planilha.
+
+### 5.5 Planilhas da escola e da Secretaria
+
+1. Compartilhe cada planilha com **celef@scseduca.com.br**: **Editor** nas planilhas da escola (ALUNOS 2026,
+   TURMAS-2027); **Leitor** na planilha da Secretaria de Educação.
+2. **Admin → Planilhas conectadas** → cole o link, dê um nome, escolha o papel e o ano → **Cadastrar** →
+   **Testar conexão**. A tela lista as abas e os cabeçalhos encontrados.
+3. A sincronização fica **desligada** até o mapeamento de colunas (Fase 5). Nada é lido nem escrito nos dados ainda.
+
+Modelo de mensagem para a Secretaria de Educação:
+
+> Prezados, para integrar o novo sistema de gestão do CELEF, pedimos que a planilha de alunos seja compartilhada
+> **somente para leitura** com a conta `celef@scseduca.com.br`. O sistema apenas lê os nomes dos alunos; não altera
+> a planilha nem muda o processo de vocês. Obrigado.
+
+### 5.6 Cron
+
+cPanel → Cron Jobs, a cada 5 minutos:
+
+```
+*/5 * * * * /usr/local/bin/php /home/<usuario>/<pasta-do-projeto>/cron/flush_sheet_log.php >> /home/<usuario>/<pasta-do-projeto>/storage/logs/cron.log 2>&1
+```
+
+### 5.7 O que vale saber
+
+- **O link da planilha não é enviado ao servidor.** O firewall da hospedagem recusa qualquer campo cujo valor seja uma
+  URL. O navegador extrai o ID do link e envia só o ID. Sem JavaScript, cole o ID (trecho entre `/d/` e `/edit`).
+- **Apóstrofo visível.** Valores que começam com `=`, `+`, `-` ou `@` são gravados com um apóstrofo na frente
+  (ex.: `'+55 11 9…`), além de irem como texto puro (`RAW`). É a proteção contra injeção de fórmula.
+- **Service Account** é alternativa à celef@ (mesma tela, seção recolhida). Só serve se o administrador do Workspace
+  permitir compartilhar planilhas com o e-mail `…@<projeto>.iam.gserviceaccount.com`.
+- **Planilha da Secretaria**: cadastrada como somente leitura. Permitir escrita exige Super Administrador e digitar SIM.
+
+---
+
+## 6. Próximas fases
+
+Fase 5 (sincronização), 6–10 (módulos),
 11 (testes de segurança). Cada fase acrescenta aqui a sua seção "Como publicar".

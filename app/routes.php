@@ -5,9 +5,12 @@ declare(strict_types=1);
 use App\controllers\Admin\AdministratorsController;
 use App\controllers\Admin\AuditController;
 use App\controllers\Admin\DashboardController;
+use App\controllers\Admin\LogSheetController;
 use App\controllers\Admin\RolesController;
 use App\controllers\Admin\SecurityController;
 use App\controllers\Admin\SettingsController;
+use App\controllers\Admin\SheetsController;
+use App\controllers\Admin\TechAccountController;
 use App\controllers\Admin\UsersController;
 use App\controllers\AuthController;
 use App\controllers\HomeController;
@@ -58,3 +61,21 @@ $router->post('/admin/seguranca/sessoes/{hash}/encerrar',[SecurityController::cl
 $router->post('/admin/seguranca/eventos/{id}/ciente',    [SecurityController::class, 'acknowledge']);
 $router->get('/admin/auditoria',                         [AuditController::class, 'index']);
 $router->post('/admin/auditoria/verificar',              [AuditController::class, 'verify']);
+
+// ---- administração: Google (conta técnica, planilhas conectadas, planilha de logs) ------------------------
+$router->get('/admin/conta-tecnica',                    [TechAccountController::class, 'index']);
+$router->post('/admin/conta-tecnica/conectar',          [TechAccountController::class, 'connect']);
+$router->post('/admin/conta-tecnica/testar',            [TechAccountController::class, 'test']);
+$router->post('/admin/conta-tecnica/revogar',           [TechAccountController::class, 'revoke']);
+$router->post('/admin/conta-tecnica/service-account',   [TechAccountController::class, 'storeServiceAccount']);
+$router->get('/admin/planilhas',                        [SheetsController::class, 'index']);
+$router->post('/admin/planilhas',                       [SheetsController::class, 'store']);
+$router->get('/admin/planilhas/{id}',                   [SheetsController::class, 'show']);
+$router->post('/admin/planilhas/{id}',                  [SheetsController::class, 'update']);
+$router->post('/admin/planilhas/{id}/testar',           [SheetsController::class, 'test']);
+$router->post('/admin/planilhas/{id}/excluir',          [SheetsController::class, 'delete']);
+$router->get('/admin/planilha-logs',                    [LogSheetController::class, 'index']);
+$router->post('/admin/planilha-logs',                   [LogSheetController::class, 'save']);
+$router->post('/admin/planilha-logs/testar',            [LogSheetController::class, 'test']);
+$router->post('/admin/planilha-logs/enviar',            [LogSheetController::class, 'flush']);
+$router->post('/admin/planilha-logs/conferir',          [LogSheetController::class, 'compare']);

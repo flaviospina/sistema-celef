@@ -9,7 +9,7 @@ if (!defined('APP_ROOT')) {
 
 define('APP_PATH', APP_ROOT . '/app');
 define('STORAGE_PATH', APP_ROOT . '/storage');
-define('APP_VERSION', '0.3.0'); // Fase 3
+define('APP_VERSION', '0.4.0'); // Fase 4
 define('APP_START', microtime(true));
 
 // ---- Autoload PSR-4 simples: App\Security\Crypto → app/Security/Crypto.php ------------------------
