@@ -36,9 +36,9 @@ final class Csrf
         self::$lastFailure = null;
         $expected = SecureSession::get('_csrf');
         $cookieName = session_name();
-        $ctx = sprintf('cookie_de_sessao_recebido=%s; sessao_tem_token=%s; formulario_tem_token=%s; origin=%s; referer=%s; https=%s',
+        $ctx = sprintf('cookie_de_sessao_recebido=%s; sessao_tem_token=%s; formulario_tem_token=%s; sec-fetch-site=%s; origin=%s; referer=%s; https=%s',
             isset($_COOKIE[$cookieName]) ? 'sim' : "não ({$cookieName})", is_string($expected) ? 'sim' : 'não', is_string($sent) ? 'sim' : 'não',
-            $_SERVER['HTTP_ORIGIN'] ?? '-', isset($_SERVER['HTTP_REFERER']) ? 'sim' : '-', SecureSession::isHttps() ? 'sim' : 'não');
+            $_SERVER['HTTP_SEC_FETCH_SITE'] ?? '-', $_SERVER['HTTP_ORIGIN'] ?? '-', isset($_SERVER['HTTP_REFERER']) ? 'sim' : '-', SecureSession::isHttps() ? 'sim' : 'não');
         if (!is_string($expected) || !is_string($sent) || strlen($sent) !== 64) {
             self::$lastFailure = 'token ausente: ' . $ctx;
             return false;
@@ -74,13 +74,23 @@ final class Csrf
         return is_string($v) ? $v : null;
     }
 
-    /** Origin (ou Referer, na ausência) deve ser o próprio site. Sem nenhum dos dois → negar. */
+    /**
+     * A requisição deve vir do próprio site. Ordem: Sec-Fetch-Site (enviado por todos os navegadores atuais),
+     * depois Origin, depois Referer. Sem nenhum deles → negar.
+     */
     public static function originAllowed(): bool
     {
+        $sfs = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? null;
+        if (is_string($sfs) && $sfs !== '') {
+            return $sfs === 'same-origin';
+        }
         $base = Config::get('BASE_URL');
         $expectedHost = $base ? (parse_url($base, PHP_URL_HOST) ?: null) : null;
         $expectedHost ??= $_SERVER['HTTP_HOST'] ?? null;
-        $candidate = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? null;
+        $candidate = $_SERVER['HTTP_ORIGIN'] ?? null;
+        if (!is_string($candidate) || $candidate === 'null') {
+            $candidate = $_SERVER['HTTP_REFERER'] ?? null;
+        }
         if (!is_string($candidate) || $expectedHost === null) {
             return false;
         }

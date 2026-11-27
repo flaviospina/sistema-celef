@@ -71,6 +71,12 @@ unset($_SERVER['HTTP_ORIGIN']);
 ok(!Csrf::validate($t), 'sem Origin/Referer → negado');
 $_SERVER['HTTP_REFERER'] = 'http://127.0.0.1:8088/pagina';
 ok(Csrf::validate($t) && !Csrf::validate(strrev($t)) && !Csrf::validate(null), 'Referer aceito; token errado/ausente negado');
+unset($_SERVER['HTTP_REFERER']);
+$_SERVER['HTTP_ORIGIN'] = 'null'; $_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-origin';
+ok(Csrf::validate($t), 'Origin "null" com Sec-Fetch-Site: same-origin → aceito (comportamento do Chrome)');
+$_SERVER['HTTP_SEC_FETCH_SITE'] = 'cross-site'; $_SERVER['HTTP_ORIGIN'] = 'http://127.0.0.1:8088';
+ok(!Csrf::validate($t), 'Sec-Fetch-Site: cross-site → negado mesmo com Origin igual');
+unset($_SERVER['HTTP_SEC_FETCH_SITE'], $_SERVER['HTTP_ORIGIN']);
 
 echo "== Banco e contexto\n";
 Database::setActor(1, 'APP');

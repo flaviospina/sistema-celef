@@ -37,7 +37,9 @@ final class Headers
         header('Content-Security-Policy: ' . $csp);
         header('X-Content-Type-Options: nosniff');
         header('X-Frame-Options: DENY');
-        header('Referrer-Policy: no-referrer');
+        // same-origin (e não no-referrer): com no-referrer o navegador envia Origin: null até em POST do próprio site,
+        // o que inviabiliza a verificação de origem do CSRF. Para outros sites nada é enviado, como antes.
+        header('Referrer-Policy: same-origin');
         header('Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()');
         header('Cross-Origin-Opener-Policy: same-origin');
         header('Cross-Origin-Resource-Policy: same-origin');
