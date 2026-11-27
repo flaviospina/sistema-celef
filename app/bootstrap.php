@@ -43,10 +43,15 @@ ini_set('display_errors', App\Config::isProduction() ? '0' : '1');
 ini_set('expose_php', '0');
 error_reporting(E_ALL);
 
-// Erros de PHP viram exceções (tratadas pelo Kernel ou pelo cron)
+// Erros de PHP viram exceções (tratadas pelo Kernel ou pelo cron). Avisos de obsolescência só vão para o log:
+// não podem derrubar o sistema quando a hospedagem muda a versão do PHP.
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
     if (!(error_reporting() & $severity)) {
         return false;
+    }
+    if ($severity === E_DEPRECATED || $severity === E_USER_DEPRECATED) {
+        App\Security\Logger::warning('PHP obsoleto', ['msg' => $message, 'arquivo' => str_replace(APP_ROOT, '', $file) . ':' . $line]);
+        return true;
     }
     throw new \ErrorException($message, 0, $severity, $file, $line);
 });

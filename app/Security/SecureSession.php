@@ -29,8 +29,10 @@ final class SecureSession
         ini_set('session.cookie_httponly', '1');
         ini_set('session.cookie_secure', $secure ? '1' : '0');
         ini_set('session.cookie_samesite', 'Strict');
-        ini_set('session.sid_length', '48');
-        ini_set('session.sid_bits_per_character', '6');
+        if (PHP_VERSION_ID < 80400) { // obsoletas no PHP 8.4 (que já usa ids de 128 bits)
+            ini_set('session.sid_length', '48');
+            ini_set('session.sid_bits_per_character', '6');
+        }
         ini_set('session.gc_maxlifetime', (string) (Settings::int('session.absolute_hours', 8) * 3600));
         ini_set('session.save_path', self::savePath());
 

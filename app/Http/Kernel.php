@@ -67,7 +67,8 @@ final class Kernel
             self::error($request, $e->status, $e->title, $e->getMessage());
         } catch (\Throwable $e) {
             Logger::exception($e);
-            $detail = Config::isProduction() ? null : $e::class . ': ' . $e->getMessage() . ' em ' . str_replace(APP_ROOT, '', $e->getFile()) . ':' . $e->getLine();
+            $showDetail = !Config::isProduction() || Config::bool('APP_DEBUG_ERRORS', false);
+            $detail = $showDetail ? $e::class . ': ' . $e->getMessage() . ' em ' . str_replace(APP_ROOT, '', $e->getFile()) . ':' . $e->getLine() : null;
             self::error($request, 500, 'Erro interno', 'Ocorreu um erro inesperado. Informe o código abaixo ao administrador.', $detail);
         }
     }
