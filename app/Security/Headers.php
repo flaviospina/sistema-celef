@@ -48,6 +48,9 @@ final class Headers
         if ($noStore) {
             header('Cache-Control: no-store, no-cache, must-revalidate, private');
             header('Pragma: no-cache');
+            header('Expires: 0');
+            // LiteSpeed (HostGator Turbo): nunca guardar páginas dinâmicas no cache do servidor
+            header('X-LiteSpeed-Cache-Control: no-cache');
         }
     }
 }

@@ -27,8 +27,35 @@ final class Csrf
         return '<input type="hidden" name="' . self::FIELD . '" value="' . htmlspecialchars(self::token(), ENT_QUOTES, 'UTF-8') . '">';
     }
 
+    /** Diagnóstico da última validação (sem valores de token), para o log e para APP_DEBUG_ERRORS. */
+    public static ?string $lastFailure = null;
+
     /** Valida o token enviado (POST ou cabeçalho) e, em profundidade, o Origin/Referer. */
     public static function validate(?string $sent): bool
+    {
+        self::$lastFailure = null;
+        $expected = SecureSession::get('_csrf');
+        $cookieName = session_name();
+        $ctx = sprintf('cookie_de_sessao_recebido=%s; sessao_tem_token=%s; formulario_tem_token=%s; origin=%s; referer=%s; https=%s',
+            isset($_COOKIE[$cookieName]) ? 'sim' : "não ({$cookieName})", is_string($expected) ? 'sim' : 'não', is_string($sent) ? 'sim' : 'não',
+            $_SERVER['HTTP_ORIGIN'] ?? '-', isset($_SERVER['HTTP_REFERER']) ? 'sim' : '-', SecureSession::isHttps() ? 'sim' : 'não');
+        if (!is_string($expected) || !is_string($sent) || strlen($sent) !== 64) {
+            self::$lastFailure = 'token ausente: ' . $ctx;
+            return false;
+        }
+        if (!hash_equals($expected, $sent)) {
+            self::$lastFailure = 'token diferente do da sessão (página antiga ou cacheada): ' . $ctx;
+            return false;
+        }
+        if (!self::originAllowed()) {
+            self::$lastFailure = 'Origin/Referer não é este site: ' . $ctx;
+            return false;
+        }
+        return true;
+    }
+
+    /** @deprecated mantido por compatibilidade interna */
+    private static function validateLegacy(?string $sent): bool
     {
         $expected = SecureSession::get('_csrf');
         if (!is_string($expected) || !is_string($sent) || strlen($sent) !== 64) {

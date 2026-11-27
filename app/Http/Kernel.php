@@ -56,8 +56,9 @@ final class Kernel
 
             // Todo POST exige token CSRF válido (fail-closed)
             if ($request->isPost() && !Csrf::validate(Csrf::fromRequest())) {
-                Logger::warning('CSRF inválido', ['rota' => $request->path, 'ip' => RequestContext::ip()]);
-                self::error($request, 419, 'Sessão expirada', 'Sua sessão expirou ou o formulário é inválido. Volte e tente novamente.');
+                Logger::warning('CSRF inválido', ['rota' => $request->path, 'ip' => RequestContext::ip(), 'motivo' => Csrf::$lastFailure]);
+                $detail = (!Config::isProduction() || Config::bool('APP_DEBUG_ERRORS', false)) ? (string) Csrf::$lastFailure : null;
+                self::error($request, 419, 'Sessão expirada', 'Sua sessão expirou ou o formulário é inválido. Volte e tente novamente.', $detail);
             }
 
             [$class, $method] = $match['handler'];

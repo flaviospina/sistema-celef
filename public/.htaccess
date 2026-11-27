@@ -37,6 +37,17 @@ ServerSignature Off
     Require all denied
 </FilesMatch>
 
+# ---- Cache de servidor (LiteSpeed/HostGator): só arquivos estáticos; nunca o PHP ---------------------
+<IfModule LiteSpeed>
+    CacheDisable public /
+</IfModule>
+<IfModule mod_headers.c>
+    <FilesMatch "\.php$">
+        Header always set X-LiteSpeed-Cache-Control "no-cache"
+        Header always set Cache-Control "no-store, no-cache, must-revalidate, private"
+    </FilesMatch>
+</IfModule>
+
 # ---- Sem listagem de diretórios -----------------------------------------------------------------------
 Options -Indexes -MultiViews
 
