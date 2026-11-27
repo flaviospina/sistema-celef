@@ -32,7 +32,8 @@ final class Database
         } catch (PDOException $e) {
             // nunca expõe DSN/senha; detalhes só no log
             Security\Logger::critical('Falha ao conectar ao banco', ['erro' => $e->getMessage()]);
-            throw new \RuntimeException('Banco de dados indisponível.');
+            // a causa (ex.: "Access denied for user") fica na exceção anterior; só aparece com APP_DEBUG_ERRORS=1
+            throw new \RuntimeException('Banco de dados indisponível.', 0, $e);
         }
 
         // Horário de negócio em São Paulo (offset calculado para não depender das tabelas de fuso do MySQL)

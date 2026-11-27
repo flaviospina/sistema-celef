@@ -69,6 +69,9 @@ final class Kernel
             Logger::exception($e);
             $showDetail = !Config::isProduction() || Config::bool('APP_DEBUG_ERRORS', false);
             $detail = $showDetail ? $e::class . ': ' . $e->getMessage() . ' em ' . str_replace(APP_ROOT, '', $e->getFile()) . ':' . $e->getLine() : null;
+            if ($showDetail && $e->getPrevious() !== null) {
+                $detail .= "\nCausa: " . $e->getPrevious()->getMessage();
+            }
             self::error($request, 500, 'Erro interno', 'Ocorreu um erro inesperado. Informe o código abaixo ao administrador.', $detail);
         }
     }

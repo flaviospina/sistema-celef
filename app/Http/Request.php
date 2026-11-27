@@ -15,10 +15,13 @@ final class Request
         $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
         $path = parse_url($uri, PHP_URL_PATH) ?: '/';
         $path = '/' . trim(preg_replace('~/+~', '/', $path) ?? '/', '/');
-        // remove prefixo de subpasta, se BASE_URL tiver caminho (ex.: https://dominio/celef)
-        $basePath = parse_url(\App\Config::get('BASE_URL', '') ?? '', PHP_URL_PATH);
-        if (is_string($basePath) && $basePath !== '/' && $basePath !== '' && str_starts_with($path, $basePath)) {
-            $path = '/' . ltrim(substr($path, strlen($basePath)), '/');
+        // Instalação em subpasta (ex.: https://dominio/celef/public/): remove o prefixo da pasta do index.php.
+        // Usa SCRIPT_NAME (informado pelo Apache), por isso funciona mesmo com BASE_URL errado no .env.
+        $scriptDir = rtrim(str_replace('\\', '/', dirname((string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'))), '/');
+        if ($scriptDir !== '' && $scriptDir !== '/' && str_starts_with($path, $scriptDir . '/')) {
+            $path = substr($path, strlen($scriptDir));
+        } elseif ($scriptDir !== '' && $scriptDir !== '/' && $path === $scriptDir) {
+            $path = '/';
         }
         $this->path = $path === '' ? '/' : $path;
     }
