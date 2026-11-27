@@ -1,0 +1,6 @@
+# .htaccess da RAIZ do projeto — Sistema CELEF
+# Nega tudo por padrão. Só public/ libera o acesso (public/.htaccess começa com "Require all granted").
+# Protege app/, sql/, cron/, storage/, tools/, docs/ e o .env quando o projeto fica dentro do document root
+# (instalação em subpasta, ex.: https://dominio/celef/public/).
+Require all denied
+Options -Indexes

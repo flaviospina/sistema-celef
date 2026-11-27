@@ -20,12 +20,27 @@ final class Kernel
         $request = new Request();
         try {
             Headers::apply();
+
+            // Sem .env não há como seguir: mensagem clara (sem expor caminhos) para quem está instalando
+            if (!is_file(APP_ROOT . '/.env')) {
+                self::error($request, 500, 'Instalação incompleta',
+                    'O arquivo .env não foi encontrado na pasta do projeto (a mesma pasta de app/ e public/). Copie .env.example para .env e preencha.');
+            }
+
             SecureSession::start();
 
-            // Limite global por IP (proteção básica contra abuso; limites específicos ficam nos controllers)
-            $limit = RateLimiter::hit('ip:' . RequestContext::ip() . ':global', 300, 60);
-            if (!$limit['allowed']) {
-                self::tooMany($request, $limit['retry_after']);
+            // Limite global por IP (proteção básica contra abuso; limites específicos ficam nos controllers).
+            // Páginas de diagnóstico (/status, /instalacao) continuam funcionando mesmo sem banco.
+            $diagnostic = in_array($request->path, ['/status', '/instalacao'], true);
+            try {
+                $limit = RateLimiter::hit('ip:' . RequestContext::ip() . ':global', 300, 60);
+                if (!$limit['allowed']) {
+                    self::tooMany($request, $limit['retry_after']);
+                }
+            } catch (\RuntimeException $e) {
+                if (!$diagnostic) {
+                    throw $e;
+                }
             }
 
             $router = new Router();

@@ -1,4 +1,7 @@
-# public/.htaccess — Sistema CELEF (document root do domínio)
+# public/.htaccess — Sistema CELEF (document root do domínio OU subpasta pública)
+
+# Libera esta pasta (a raiz do projeto nega tudo)
+Require all granted
 
 # ---- HTTPS obrigatório ------------------------------------------------------------------------------
 RewriteEngine On

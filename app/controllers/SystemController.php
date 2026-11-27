@@ -28,8 +28,12 @@ final class SystemController extends Controller
      */
     public function status(): never
     {
-        if (!RateLimiter::hit('ip:' . RequestContext::ip() . ':status', 20, 300)['allowed']) {
-            throw new HttpException(429, 'Muitas requisições', 'Aguarde alguns minutos.');
+        try {
+            if (!RateLimiter::hit('ip:' . RequestContext::ip() . ':status', 20, 300)['allowed']) {
+                throw new HttpException(429, 'Muitas requisições', 'Aguarde alguns minutos.');
+            }
+        } catch (\RuntimeException $e) {
+            // sem banco: a página existe justamente para mostrar isso
         }
         $checks = $this->checks();
         $allOk = !in_array(false, array_column($checks, 'ok'), true);
@@ -53,8 +57,12 @@ final class SystemController extends Controller
         if (!Config::cryptoKeysMissing()) {
             throw HttpException::notFound();
         }
-        if (!RateLimiter::hit('ip:' . RequestContext::ip() . ':instalacao', 5, 600)['allowed']) {
-            throw new HttpException(429, 'Muitas requisições', 'Aguarde alguns minutos.');
+        try {
+            if (!RateLimiter::hit('ip:' . RequestContext::ip() . ':instalacao', 5, 600)['allowed']) {
+                throw new HttpException(429, 'Muitas requisições', 'Aguarde alguns minutos.');
+            }
+        } catch (\RuntimeException $e) {
+            // sem banco ainda: a geração de chaves não depende dele
         }
         Logger::warning('Página de instalação acessada (chaves ainda não configuradas)', ['ip' => RequestContext::ip()]);
         $keys = Crypto::generateKeys();
@@ -118,8 +126,13 @@ final class SystemController extends Controller
             $super = (int) Database::value("SELECT COUNT(*) FROM users u JOIN roles r ON r.id = u.role_id WHERE r.code = 'SUPER_ADMIN' AND u.is_active = 1 AND u.deleted_at IS NULL");
             $checks[] = ['item' => 'Super Administrador ativo', 'ok' => $super > 0, 'info' => (string) $super];
         } catch (\Throwable $e) {
-            $checks[] = ['item' => 'Banco de dados', 'ok' => false, 'info' => 'sem conexão (verifique DB_* no .env)'];
+            $checks[] = ['item' => 'Banco de dados', 'ok' => false, 'info' => 'sem conexão: verifique DB_HOST, DB_NAME, DB_USER e DB_PASS no .env e se o usuário foi adicionado ao banco no cPanel'];
         }
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        $base = (string) (Config::get('BASE_URL', '') ?? '');
+        $baseHost = (string) (parse_url($base, PHP_URL_HOST) ?: '');
+        $checks[] = ['item' => 'BASE_URL', 'ok' => $base !== '' && strcasecmp($baseHost, $host) === 0,
+            'info' => $base === '' ? 'vazio no .env' : ($baseHost === $host ? $base : "{$base} não corresponde ao endereço acessado ({$host})")];
         return $checks;
     }
 }
