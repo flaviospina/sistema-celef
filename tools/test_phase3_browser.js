@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
 
   await page.goto('http://127.0.0.1:8088/celef/public/login');
   await page.click('button:has-text("Entrar com Google")');
-  await page.waitForURL(u => !u.href.includes('/login') && !u.href.includes('callback') && !u.href.includes('8090'), { timeout: 20000 });
+  await page.waitForURL(u => !u.href.includes('/login') && !u.href.includes('callback') && !u.href.includes('retorno.css') && !u.href.includes('8090'), { timeout: 20000 });
   await page.waitForLoadState('networkidle');
   // aceite do aviso de privacidade
   if (page.url().includes('/privacidade/aceite')) {

@@ -28,10 +28,12 @@ final class Browser {
     public function post(string $u, array $data, bool $follow = true): string {
         global $BASE; $data['_csrf'] = $this->csrf(); return $this->req('POST', $u, $data, $follow, ['Origin: ' . $BASE]);
     }
-    /** Faz o que o JS de callback.html faria: lê code/state do fragmento (ou da query) do último Location e chama o callback PHP. */
+    /** Faz o que o JS da página-ponte (retorno.css) faria: lê code/state do fragmento (ou da query) do último Location e chama o callback PHP. */
     public function forwardCallback(): void {
         global $BASE;
-        if (!preg_match_all('~^Location:\s*(\S*callback\.html[#?]\S+)~mi', $this->headers, $m)) { return; }
+        if (!preg_match_all('~^Location:\s*(\S*retorno\.css[#?]\S+)~mi', $this->headers, $m)) { return; }
+        // a página-ponte não pode criar sessão nova (sobrescreveria o cookie do usuário)
+        global $pass, $fail; if (!$this->has('Concluindo o login') || preg_match('~retorno\.css[^\n]*\n(?:(?!\r?\n\r?\n).)*Set-Cookie~si', $this->headers)) { $fail++; echo "  ✘ página-ponte inválida ou criou cookie\n"; }
         $loc = end($m[1]);
         $raw = str_contains($loc, '#') ? substr($loc, strpos($loc, '#') + 1) : (string) parse_url($loc, PHP_URL_QUERY);
         parse_str($raw, $q);
@@ -54,7 +56,7 @@ $b->get("$BASE/login");
 ok($b->status === 200 && $b->has('Entrar com Google') && $b->csrf() !== '', 'página de login com formulário e token CSRF');
 $b->login($superUser);
 $authReq = json_decode((string) file_get_contents("$MOCK/last_auth_request.json"), true);
-ok(str_ends_with((string) $authReq['redirect_uri'], '/auth/google/callback.html') && ($authReq['response_mode'] ?? '') === 'fragment', 'redirect_uri é a página estática callback.html e response_mode=fragment');
+ok(str_ends_with((string) $authReq['redirect_uri'], '/auth/google/retorno.css'), 'redirect_uri é a página-ponte /auth/google/retorno.css');
 ok(($authReq['code_challenge_method'] ?? '') === 'S256' && ($authReq['hd'] ?? '') === 'scseduca.com.br' && !empty($authReq['nonce']) && !empty($authReq['state']), 'pedido ao Google com PKCE S256, hd, nonce e state');
 ok(str_ends_with($b->lastUrl, '/privacidade/aceite') && $b->has('Aviso de privacidade'), 'primeiro acesso cai no aceite do aviso de privacidade');
 $b->post("$BASE/privacidade/aceite", ['ciente' => '1']);

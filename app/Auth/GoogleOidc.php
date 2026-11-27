@@ -30,13 +30,18 @@ final class GoogleOidc
         return strtolower(Config::get('GOOGLE_HOSTED_DOMAIN', 'scseduca.com.br') ?? 'scseduca.com.br');
     }
 
+    /** Caminho (relativo ao BASE_URL) da página de retorno. Ver Kernel::googleReturnPage(). */
+    public const RETURN_PATH = '/auth/google/retorno.css';
+
     /**
-     * redirect_uri registrado no Google: a página ESTÁTICA public/auth/google/callback.html, que lê o fragmento
-     * (response_mode=fragment) e encaminha code/state ao callback PHP (ver comentário na própria página).
+     * redirect_uri registrado no Google. O nome termina em ".css" DE PROPÓSITO: o ModSecurity da hospedagem recusa (406)
+     * qualquer pedido com parâmetro cujo valor seja uma URL (o Google acrescenta iss=https://accounts.google.com), mas
+     * libera caminhos com extensão de arquivo estático (css, png, svg…). Não existe arquivo com esse nome: o pedido cai
+     * no front controller, que responde uma página HTML mínima e encaminha só code/state para /auth/google/callback.
      */
     public static function redirectUri(): string
     {
-        return rtrim(Config::require('BASE_URL'), '/') . '/auth/google/callback.html';
+        return rtrim(Config::require('BASE_URL'), '/') . self::RETURN_PATH;
     }
 
     public static function isConfigured(): bool
@@ -73,8 +78,6 @@ final class GoogleOidc
             'code_challenge'        => self::codeChallenge($p['code_verifier']),
             'code_challenge_method' => 'S256',
             'hd'                    => self::hostedDomain(),
-            // fragment: o retorno vem após "#" e não chega ao servidor (ver public/auth/google/callback.html)
-            'response_mode'         => 'fragment',
             'access_type'           => 'online',
             'prompt'                => $p['prompt'] ?? 'select_account',
         ];
