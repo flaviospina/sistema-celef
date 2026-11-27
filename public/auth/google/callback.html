@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="same-origin">
+<title>Retornando do Google…</title>
+<!--
+  Página ESTÁTICA de retorno do login Google (redirect_uri registrado no Google Cloud).
+  Por que estática: (1) o ModSecurity da hospedagem bloqueia, em páginas PHP, o parâmetro iss=https://accounts.google.com
+  que o Google acrescenta ao retorno; arquivos estáticos não são inspecionados. (2) O cookie de sessão usa SameSite=Strict
+  e não é enviado numa navegação vinda de outro site; a navegação seguinte, feita por esta página, já é "do próprio site".
+  O script encaminha SOMENTE code, state e error para /auth/google/callback (PHP), que faz toda a validação.
+-->
+<style>body{font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#163a5a;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}p{opacity:.85}</style>
+</head>
+<body>
+<p id="msg">Concluindo o login…</p>
+<noscript><p>Este sistema precisa de JavaScript habilitado para concluir o login. Ative o JavaScript e tente novamente.</p></noscript>
+<script src="../../assets/js/google-retorno.js"></script>
+</body>
+</html>

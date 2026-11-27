@@ -30,9 +30,13 @@ final class GoogleOidc
         return strtolower(Config::get('GOOGLE_HOSTED_DOMAIN', 'scseduca.com.br') ?? 'scseduca.com.br');
     }
 
+    /**
+     * redirect_uri registrado no Google: a página ESTÁTICA public/auth/google/callback.html, que encaminha
+     * code/state ao callback PHP (ver comentário na própria página: ModSecurity e SameSite=Strict).
+     */
     public static function redirectUri(): string
     {
-        return rtrim(Config::require('BASE_URL'), '/') . '/auth/google/callback';
+        return rtrim(Config::require('BASE_URL'), '/') . '/auth/google/callback.html';
     }
 
     public static function isConfigured(): bool
