@@ -20,6 +20,13 @@ final class Headers
             return;
         }
         $nonce = self::nonce();
+        // form-action precisa incluir o destino do redirecionamento pós-POST (o navegador aplica a diretiva também
+        // ao redirect): o Google e, se configurado para testes, o emulador em GOOGLE_DISCOVERY_URL.
+        $formAction = "'self' https://accounts.google.com";
+        $disc = \App\Config::get('GOOGLE_DISCOVERY_URL');
+        if ($disc !== null && ($u = parse_url($disc)) && isset($u['scheme'], $u['host'])) {
+            $formAction .= ' ' . $u['scheme'] . '://' . $u['host'] . (isset($u['port']) ? ':' . $u['port'] : '');
+        }
         $csp = implode('; ', [
             "default-src 'self'",
             "script-src 'self' 'nonce-{$nonce}'",
@@ -31,7 +38,7 @@ final class Headers
             "frame-ancestors 'none'",
             "object-src 'none'",
             "base-uri 'self'",
-            "form-action 'self' https://accounts.google.com",
+            "form-action {$formAction}",
             "upgrade-insecure-requests",
         ]);
         header('Content-Security-Policy: ' . $csp);
