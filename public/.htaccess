@@ -1,0 +1,49 @@
+# public/.htaccess — Sistema CELEF (document root do domínio)
+
+# ---- HTTPS obrigatório ------------------------------------------------------------------------------
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# ---- Front controller ---------------------------------------------------------------------------------
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
+
+# ---- Cabeçalhos de segurança (também enviados pelo PHP; aqui cobrem arquivos estáticos) -------------
+<IfModule mod_headers.c>
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "no-referrer"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Cross-Origin-Resource-Policy "same-origin"
+    Header unset X-Powered-By
+</IfModule>
+ServerSignature Off
+
+# ---- Segunda camada: nada disso deve existir aqui, mas se alguém enviar por engano, não é servido --
+<FilesMatch "\.(env|sql|log|md|ini|sh|py|json|lock|bak|old|tpl|txt)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(composer|package|phpunit|LEIA-ME).*">
+    Require all denied
+</FilesMatch>
+
+# ---- Sem listagem de diretórios -----------------------------------------------------------------------
+Options -Indexes -MultiViews
+
+# ---- Cache de estáticos versionados -------------------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>

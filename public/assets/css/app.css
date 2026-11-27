@@ -1,0 +1,23 @@
+/* public/assets/css/app.css — tema do Sistema CELEF (paleta provisória; será substituída pelas cores do logo oficial) */
+:root {
+  --celef-primaria: #1f4e79;      /* azul institucional provisório */
+  --celef-primaria-escura: #163a5a;
+  --celef-secundaria: #2e8b57;
+  --celef-fundo: #f4f6f9;
+  --celef-texto: #1e2a36;
+  --celef-borda: #d9e0e8;
+}
+body { background: var(--celef-fundo); color: var(--celef-texto); }
+.celef-header { background: var(--celef-primaria); color: #fff; }
+.celef-header .navbar-brand, .celef-header a { color: #fff; }
+.celef-logo { object-fit: contain; }
+.celef-logo-grande { object-fit: contain; }
+.celef-footer { color: #5b6b7b; border-top: 1px solid var(--celef-borda); }
+.celef-footer a { color: inherit; }
+.celef-bg-minimo { background: linear-gradient(160deg, var(--celef-primaria) 0%, var(--celef-primaria-escura) 60%, #0f2538 100%); }
+.celef-card-min { max-width: 760px; }
+.btn-primary { background: var(--celef-primaria); border-color: var(--celef-primaria); }
+.btn-primary:hover, .btn-primary:focus { background: var(--celef-primaria-escura); border-color: var(--celef-primaria-escura); }
+a { color: var(--celef-primaria); }
+/* dados sensíveis mascarados */
+.celef-mascarado { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .03em; }

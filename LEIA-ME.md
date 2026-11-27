@@ -67,7 +67,73 @@ qualquer forma), mas peça à HostGator a migração do banco para a versão atu
 
 ---
 
-## 3. Próximas fases
+## 3. Fase 2 — Núcleo de segurança (código PHP)
 
-Fase 2 (núcleo de segurança), 3 (login Google + admin), 4 (cliente Google), 5 (sincronização), 6–10 (módulos),
+### 3.1 O que foi entregue
+
+| Pasta/arquivo | Conteúdo |
+|---|---|
+| `public/index.php`, `public/.htaccess` | front controller (constante `APP_ROOT`), HTTPS forçado, cabeçalhos, bloqueio de arquivos sensíveis |
+| `public/assets/` | Bootstrap 5.3.3 local (`vendor/`), `css/app.css` (paleta provisória em variáveis CSS), `js/app.js`, pasta `img/marca/` com os nomes esperados |
+| `app/config.php` | leitura do `.env` sem biblioteca (`App\Config`) |
+| `app/bootstrap.php` | autoload, fuso, tratamento de erros, verificação de extensões |
+| `app/Database.php` | PDO (prepared statements nativos, uma instrução por execução), **`@app_user_id`/`@app_origin` em toda conexão**, `updateVersioned` (lock otimista), `GET_LOCK` |
+| `app/Settings.php` | leitura/gravação da tabela `settings` |
+| `app/Security/Crypto.php` | XChaCha20-Poly1305 por campo com versão de chave e contexto autenticado; blind index HMAC; cifragem de arquivos em blocos |
+| `app/Security/AuditLog.php` | gravação encadeada (`GET_LOCK('celef_audit')`), diff mascarado em JSON canônico, fila para a planilha de logs, `verifyChain`, sonda dos triggers, âncora diária |
+| `app/Security/SecurityEvents.php` | eventos de segurança + fila `alert_outbox` com destinatários (admins ativos + `SUPER_ADMIN_EMAILS`) |
+| `app/Security/Csrf.php`, `Headers.php`, `RateLimiter.php`, `SecureSession.php`, `Validator.php`, `Masker.php`, `Logger.php`, `RequestContext.php` | CSRF + verificação de Origin; CSP com nonce e demais cabeçalhos; limite por chave na tabela `rate_limits`; sessão `__Host-` Strict com expirações; validação (CPF etc.); mascaramento; log JSON diário; IP/UA/request_id |
+| `app/Http/*` | Request, Response (`{ok,data,mensagem}`), Router, Kernel, View (escape + nonce), Controller base |
+| `app/controllers/SystemController.php` | `/` (página provisória), `/status`, `/instalacao`, `/privacidade` |
+| `cron/_bootstrap.php`, `cron/verify_audit.php`, `app/Cron/JobRunner.php` | scripts de cron (recusam web), lock anti-sobreposição, registro em `cron_runs` |
+| `.env.example` | todas as variáveis, comentadas |
+
+### 3.2 Publicar no HostGator (passo a passo)
+
+1. **Document root do domínio.** cPanel → Domínios → (domínio do CELEF) → *Document Root* =
+   `/home/<usuario>/<dominio-do-celef>/public`. Se o cPanel não permitir alterar, use o **plano B**: deixe o document
+   root na pasta do domínio, coloque nela só o conteúdo de `public/`, mova `app/ sql/ cron/ storage/ .env` para
+   `/home/<usuario>/<dominio-do-celef>_privado/` e, em `index.php`, troque a linha
+   `define('APP_ROOT', dirname(__DIR__));` por `define('APP_ROOT', '/home/<usuario>/<dominio-do-celef>_privado');`.
+2. **Upload.** Gerenciador de Arquivos → enviar o `.zip` do projeto para `/home/<usuario>/<dominio-do-celef>/` → Extrair.
+   Conferir que existem `public/`, `app/`, `sql/`, `cron/`, `storage/`, `.env.example`.
+3. **Permissões.** `storage/` e subpastas (`logs`, `uploads`, `sessions`, `cache`, `tmp`): 750. Depois de criar o
+   `.env`: 600 (botão direito → Alterar permissões).
+4. **MultiPHP Manager:** PHP 8.2 para o domínio. **MultiPHP INI Editor** (modo editor, para o domínio):
+   `display_errors=Off`, `expose_php=Off`, `session.cookie_secure=1`, `session.use_strict_mode=1`,
+   `allow_url_include=Off`, `allow_url_fopen=Off`, `memory_limit=256M`, `upload_max_filesize=10M`, `post_max_size=12M`.
+5. **`.env`.** Copiar `.env.example` → `.env` (mesma pasta) e preencher `BASE_URL`, `DB_*` (usuário **celef_app**),
+   `SUPER_ADMIN_EMAILS`. Deixe `APP_KEY_V1` e `BLIND_INDEX_KEY` vazios por enquanto.
+6. **Chaves.** Abrir `https://<dominio>/instalacao`: a página gera `APP_KEY_V1`, `BLIND_INDEX_KEY` e `STATUS_TOKEN`.
+   Copiar as linhas para o `.env`, salvar, **guardar uma cópia das chaves fora do servidor** (sem elas os dados cifrados
+   e os backups são irrecuperáveis). Recarregar `/instalacao`: deve responder "Não encontrado".
+7. **Conferir.** `https://<dominio>/status?token=<STATUS_TOKEN>` deve mostrar tudo **OK**, inclusive
+   "Triggers de proteção (sonda funcional)" e "Privilégios do usuário da app: mínimos". Sem o token, `/status`
+   responde só OK/erro.
+8. **Cron.** cPanel → Cron Jobs → uma vez por dia (ex.: `20 0 * * *`):
+   ```
+   /usr/local/bin/php /home/<usuario>/<dominio-do-celef>/cron/verify_audit.php >> /home/<usuario>/<dominio-do-celef>/storage/logs/cron.log 2>&1
+   ```
+   Confirme o caminho do PHP 8.2 em cPanel → MultiPHP Manager (geralmente `/usr/local/bin/php` ou `/opt/cpanel/ea-php82/root/usr/bin/php`).
+   Os demais crons (sincronização, planilha de logs, alertas, backup) entram nas fases 4, 5 e 10.
+
+### 3.3 Decisões que valem registro
+
+- **Fail-closed:** sem banco ou sem auditoria, a requisição falha (500/erro genérico) em vez de seguir sem registro.
+  POST sem token CSRF → 419. Token válido mas `Origin`/`Referer` de outro site → negado.
+- **Sonda funcional dos triggers.** O usuário da app não enxerga `information_schema.triggers` (exige privilégio
+  TRIGGER). Por isso `/status` e o cron testam o comportamento: tentam um UPDATE em `audit_log` (deve falhar com
+  45000), um INSERT (deve sair com hash encadeado) e um UPDATE neutro em `users`/`students` (deve versionar), tudo
+  dentro de uma transação desfeita em seguida.
+- **Sessões em `storage/sessions`**, não no `/tmp` compartilhado da hospedagem.
+- **IP = `REMOTE_ADDR`** apenas: na HostGator não há proxy confiável; `X-Forwarded-For` é forjável.
+- **Contexto autenticado na cifra:** o campo é cifrado com o nome `tabela.coluna` como dado adicional. Um blob
+  copiado de `students.cpf` para `students.rg` não decifra.
+- **E-mails de alerta** são enfileirados em `alert_outbox` desde já; o envio (SMTP da conta do domínio) chega na Fase 10.
+
+---
+
+## 4. Próximas fases
+
+Fase 3 (login Google + admin), 4 (cliente Google), 5 (sincronização), 6–10 (módulos),
 11 (testes de segurança). Cada fase acrescenta aqui a sua seção "Como publicar".

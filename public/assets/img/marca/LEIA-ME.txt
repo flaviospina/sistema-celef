@@ -1,0 +1,6 @@
+Imagens oficiais do CELEF (fornecidas pela direção; não usar banco de imagens):
+  logo.png         — logo colorido, fundo transparente, mínimo 512x512
+  logo-branco.png  — versão branca para o cabeçalho, fundo transparente, mínimo 256x256
+  fachada.jpg      — foto da fachada, mínimo 1920 px de largura (gera 480/960/1920 + WebP)
+  favicon.png      — 512x512 (gera 32/180/512)
+Enquanto não forem enviadas, o sistema usa espaços reservados neutros. Pela Fase 9 o upload será feito em Admin → Identidade visual.
