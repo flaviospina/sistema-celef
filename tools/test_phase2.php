@@ -76,10 +76,11 @@ echo "== Banco e contexto\n";
 Database::setActor(1, 'APP');
 AuditLog::setActor(1, 'flaviospina@scseduca.com.br', 'SUPER_ADMIN');
 ok(Database::value('SELECT @app_user_id') === 1 && Database::value('SELECT @app_origin') === 'APP', '@app_user_id/@app_origin definidos na conexão');
+$cpfTeste = (string) random_int(10000000000, 99999999999); // CPF fictício único por execução
 $sid = Database::insert('students', ['full_name' => 'Teste Fase Dois', 'full_name_norm' => 'TESTE FASE DOIS',
-    'cpf_enc' => Crypto::encrypt('529.982.247-25', 'students.cpf'), 'cpf_bidx' => Crypto::blindIndex('52998224725'), 'key_version' => Crypto::currentVersion()]);
-$found = Database::row('SELECT id, cpf_enc FROM students WHERE cpf_bidx = :b', ['b' => Crypto::blindIndex('52998224725')]);
-ok($found !== null && (int) $found['id'] === $sid && Crypto::decrypt($found['cpf_enc'], 'students.cpf') === '529.982.247-25', 'busca por blind index e decifra');
+    'cpf_enc' => Crypto::encrypt($cpfTeste, 'students.cpf'), 'cpf_bidx' => Crypto::blindIndex($cpfTeste), 'key_version' => Crypto::currentVersion()]);
+$found = Database::row('SELECT id, cpf_enc FROM students WHERE cpf_bidx = :b', ['b' => Crypto::blindIndex($cpfTeste)]);
+ok($found !== null && (int) $found['id'] === $sid && Crypto::decrypt($found['cpf_enc'], 'students.cpf') === $cpfTeste, 'busca por blind index e decifra');
 ok(Database::updateVersioned('students', $sid, 1, ['group_name' => 'G1']) === true, 'update com versão correta grava');
 ok(Database::updateVersioned('students', $sid, 1, ['group_name' => 'G2']) === false, 'update com versão antiga é recusado (lock otimista)');
 ok((int) Database::value('SELECT version FROM students WHERE id = :id', ['id' => $sid]) === 2, 'version = 2');
