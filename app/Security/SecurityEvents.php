@@ -18,7 +18,8 @@ final class SecurityEvents
      * Registra o evento, grava na auditoria (SEGURANCA) e enfileira o e-mail de alerta.
      * @param array<string,mixed> $detail
      */
-    public static function record(string $kind, string $severity, string $summary, array $detail = [], ?string $entity = null, ?int $entityId = null, bool $alert = true): int
+    /** @param list<string> $excludeEmails destinatários a omitir (ex.: quem executou a ação) */
+    public static function record(string $kind, string $severity, string $summary, array $detail = [], ?string $entity = null, ?int $entityId = null, bool $alert = true, array $excludeEmails = []): int
     {
         $detail = Masker::scrubArray($detail);
         $auditId = AuditLog::log('SEGURANCA', $entity, $entityId, "[{$kind}] {$summary}", $detail === [] ? null : $detail);
@@ -32,7 +33,7 @@ final class SecurityEvents
             'audit_log_id' => $auditId,
         ]);
         if ($alert) {
-            self::enqueueAlert($kind, $severity, $summary, $detail, $eventId);
+            self::enqueueAlert($kind, $severity, $summary, $detail, $eventId, $excludeEmails);
         }
         return $eventId;
     }
@@ -56,10 +57,10 @@ final class SecurityEvents
         return count($rows);
     }
 
-    /** @param array<string,mixed> $detail */
-    private static function enqueueAlert(string $kind, string $severity, string $summary, array $detail, int $eventId): void
+    /** @param array<string,mixed> $detail @param list<string> $excludeEmails */
+    private static function enqueueAlert(string $kind, string $severity, string $summary, array $detail, int $eventId, array $excludeEmails = []): void
     {
-        $recipients = self::recipients();
+        $recipients = array_values(array_diff(self::recipients(), array_map('strtolower', $excludeEmails)));
         if ($recipients === []) {
             Logger::warning('Alerta sem destinatários (nenhum administrador ativo e alerts.emails vazio)', ['kind' => $kind]);
             return;

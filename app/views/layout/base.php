@@ -1,4 +1,4 @@
-<?php /** @var callable $e @var string $nonce @var string $baseUrl @var string $appName @var string $conteudo @var array $flashes */ ?>
+<?php /** layout principal (usuário logado ou páginas públicas) */ $usuario = $usuario ?? null; $can = $can ?? static fn(string $c): bool => false; ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -17,6 +17,27 @@
       <img src="<?= $e($baseUrl) ?>/assets/img/marca/logo-branco.png" alt="" class="celef-logo" width="40" height="40">
       <span class="fw-semibold"><?= $e($appName) ?></span>
     </a>
+    <?php if ($usuario !== null): ?>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menuTopo" aria-controls="menuTopo" aria-expanded="false" aria-label="Menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="menuTopo">
+      <ul class="navbar-nav ms-auto align-items-md-center gap-md-2">
+        <li class="nav-item"><a class="nav-link" href="<?= $e($baseUrl) ?>/">Início</a></li>
+        <?php if (!empty($isAdmin)): ?><li class="nav-item"><a class="nav-link" href="<?= $e($baseUrl) ?>/admin">Admin</a></li><?php endif; ?>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false"><?= $e($usuario['full_name']) ?> <span class="badge bg-light text-dark ms-1"><?= $e($usuario['role_name'] ?? $usuario['role_code']) ?></span></a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><span class="dropdown-item-text small text-muted"><?= $e($usuario['email']) ?></span></li>
+            <li><a class="dropdown-item" href="<?= $e($baseUrl) ?>/minhas-sessoes">Minhas sessões</a></li>
+            <li><a class="dropdown-item" href="<?= $e($baseUrl) ?>/privacidade">Aviso de privacidade</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><form method="post" action="<?= $e($baseUrl) ?>/logout"><?= $csrf ?><button class="dropdown-item" type="submit">Sair</button></form></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    <?php endif; ?>
   </nav>
 </header>
 <main class="container py-4 flex-grow-1">

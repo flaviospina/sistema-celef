@@ -14,6 +14,8 @@ final class View
     /** @param array<string,mixed> $data */
     public function render(string $view, array $data = [], ?string $layout = 'layout/base'): string
     {
+        // as mensagens flash são lidas UMA vez e compartilhadas entre a view e o layout
+        $data['flashes'] ??= session_status() === PHP_SESSION_ACTIVE ? SecureSession::pullFlash() : [];
         $content = $this->partial($view, $data);
         if ($layout === null) {
             return $content;

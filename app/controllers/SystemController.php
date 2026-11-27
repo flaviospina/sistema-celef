@@ -16,12 +16,6 @@ use App\Settings;
 
 final class SystemController extends Controller
 {
-    /** Até a Fase 3 (login), a página inicial só apresenta o sistema. */
-    public function home(): never
-    {
-        $this->render('system/home', ['titulo' => 'Sistema CELEF']);
-    }
-
     /**
      * /status → "OK" genérico. Com ?token=<STATUS_TOKEN> mostra o diagnóstico completo.
      * Limitado por IP para não servir de sonda.

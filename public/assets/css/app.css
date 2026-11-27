@@ -21,3 +21,14 @@ body { background: var(--celef-fundo); color: var(--celef-texto); }
 a { color: var(--celef-primaria); }
 /* dados sensíveis mascarados */
 .celef-mascarado { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .03em; }
+/* login */
+.celef-bg-login { background: linear-gradient(160deg, rgba(31,78,121,.92) 0%, rgba(22,58,90,.95) 60%, rgba(15,37,56,.97) 100%), url('../img/marca/fachada.jpg') center/cover no-repeat; }
+.celef-card-login { max-width: 480px; }
+/* menu inicial */
+.celef-modulo { border: 1px solid var(--celef-borda); color: var(--celef-texto); transition: transform .1s, box-shadow .1s; }
+a.celef-modulo:hover { transform: translateY(-2px); box-shadow: 0 .4rem 1rem rgba(0,0,0,.08); color: var(--celef-primaria); }
+.celef-modulo-icone { font-size: 2rem; line-height: 1; margin-bottom: .5rem; }
+/* admin */
+.celef-admin-nav .list-group-item.active { background: var(--celef-primaria); border-color: var(--celef-primaria); }
+.celef-diff { font-size: .8rem; white-space: pre-wrap; word-break: break-word; max-height: 8rem; overflow: auto; }
+.celef-hash { font-family: ui-monospace, Menlo, monospace; font-size: .75rem; }

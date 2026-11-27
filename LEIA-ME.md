@@ -133,7 +133,63 @@ qualquer forma), mas peça à HostGator a migração do banco para a versão atu
 
 ---
 
-## 4. Próximas fases
+## 4. Fase 3 — Login Google, perfis e área administrativa
 
-Fase 3 (login Google + admin), 4 (cliente Google), 5 (sincronização), 6–10 (módulos),
+### 4.1 O que foi entregue
+
+| Arquivo | Conteúdo |
+|---|---|
+| `app/Auth/GoogleOidc.php` | OpenID Connect sem bibliotecas: discovery, PKCE (S256), troca do código via cURL, validação do ID Token (assinatura RS256 via JWKS com `openssl_verify`, `iss`, `aud`, `azp`, `exp`, `iat`, `nonce`, `hd`, `email_verified`) |
+| `app/Auth/Auth.php` | fluxo de login/reautenticação, allowlist (`users`), contas genéricas bloqueadas, vínculo da sessão em `user_sessions` (IP, navegador, expiração absoluta, revogação), logout, "encerrar outras sessões" |
+| `app/Auth/Rbac.php` | permissões por perfil e **escopo de turmas aplicado no SQL** (`classScopeSql`); padrão = negar |
+| `app/controllers/AuthController.php`, `HomeController.php` | telas de login, reautenticação, aceite do aviso de privacidade, minhas sessões, menu por perfil |
+| `app/controllers/Admin/*` | Painel, Usuários, Administradores, Perfis e permissões, Configurações (+ padrões bloqueados), Segurança (eventos, sessões de todos, logins negados, fila de alertas), Auditoria (busca + verificação da cadeia) |
+| `app/models/UserService.php` | regras de proteção (último Super Admin, `SUPER_ADMIN_EMAILS`, autoedição), vínculos de turma sem exclusão |
+| `tools/mock_google.php`, `tools/test_phase3.php` | emulador do Google e roteiro ponta a ponta (55 verificações) — só para desenvolvimento |
+
+### 4.2 Criar o app OAuth no Google Cloud (uma vez, logado como administrador do Workspace)
+
+1. Acesse `console.cloud.google.com`, crie um projeto (ex.: **Sistema CELEF**) na organização **scseduca.com.br**.
+2. **APIs e serviços → Tela de permissão OAuth**: tipo **Interno** (só contas do Workspace), nome "Sistema CELEF",
+   e-mail de suporte da direção. Escopos: `openid`, `email`, `profile` (não há mais nada a pedir para o login).
+3. **Credenciais → Criar credenciais → ID do cliente OAuth**: tipo **Aplicativo da Web**, nome "Sistema CELEF – login".
+   Em **URIs de redirecionamento autorizados** informe exatamente:
+   ```
+   https://<dominio-do-celef>/auth/google/callback
+   ```
+   (na instalação de teste em subpasta: `https://itthrive.com.br/celef/public/auth/google/callback`).
+4. Copie **ID do cliente** e **Chave secreta do cliente** para o `.env`:
+   ```
+   GOOGLE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+   GOOGLE_CLIENT_SECRET=GOCSPX-...
+   GOOGLE_HOSTED_DOMAIN=scseduca.com.br
+   ```
+5. Recomendado ao administrador do Workspace: **verificação em duas etapas obrigatória** para os usuários do sistema
+   (Admin Console → Segurança → Autenticação → Verificação em duas etapas → Aplicar). O sistema registra o claim `amr`
+   quando o Google o envia.
+
+### 4.3 Primeiro acesso
+
+1. Abra `https://<dominio>/login` → **Entrar com Google** → escolha a conta `flaviospina@scseduca.com.br`
+   (já cadastrada pelo `seed.sql`). Qualquer outra conta recebe "Acesso negado" até ser cadastrada.
+2. Registre a ciência do aviso de privacidade.
+3. **Admin → Usuários → Novo usuário** para cada funcionário (nome, e-mail @scseduca, perfil, turmas se professor).
+4. **Admin → Configurações**: revise os tempos de sessão e os padrões de contas bloqueadas.
+
+### 4.4 Comportamentos de segurança que valem saber
+
+- A sessão é encerrada se mudar o **navegador** ou o **IP** (configurável em Admin → Configurações → Sessão).
+  Em redes móveis o IP pode mudar; se gerar reclamações, desligue só o vínculo por IP.
+- A área **/admin** pede confirmação no Google quando o login tem mais de 10 minutos (configurável).
+- Ninguém altera o próprio perfil, nem se desativa. E-mails em `SUPER_ADMIN_EMAILS` não podem ser rebaixados
+  nem desativados pela interface. O último Super Admin ativo não pode ser removido (regra também no banco).
+- Toda ação do admin gera linha `ADMIN` na auditoria e um alerta para os **outros** administradores (fila `alert_outbox`).
+- Logins negados ficam em `login_attempts` e na auditoria (`LOGIN_NEGADO`); 10 recusas do mesmo IP em 15 min
+  geram evento de segurança; 15 tentativas em 5 min bloqueiam o IP por 10 min.
+
+---
+
+## 5. Próximas fases
+
+Fase 4 (cliente Google), 5 (sincronização), 6–10 (módulos),
 11 (testes de segurança). Cada fase acrescenta aqui a sua seção "Como publicar".
