@@ -40,6 +40,11 @@ final class Config
                     $end = strrpos($value, $quote, 1);
                     $value = $end !== false ? substr($value, 1, $end - 1) : substr($value, 1);
                 }
+                // chave repetida com valor vazio (ex.: linha "STATUS_TOKEN=" do .env.example deixada no fim do arquivo)
+                // não apaga um valor já definido acima
+                if ($value === '' && isset(self::$values[$key]) && self::$values[$key] !== '') {
+                    continue;
+                }
                 self::$values[$key] = $value;
             }
         }
