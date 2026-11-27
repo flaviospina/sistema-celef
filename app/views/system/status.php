@@ -6,6 +6,7 @@
     <?php else: ?>
       <div class="alert alert-danger mb-3">Há itens com problema. <?= $checks === null ? 'Use o token de status para ver os detalhes.' : '' ?></div>
     <?php endif; ?>
+    <?php if (!empty($avisoToken)): ?><div class="alert alert-warning small"><?= $e($avisoToken) ?></div><?php endif; ?>
     <?php if ($checks !== null): ?>
       <table class="table table-sm align-middle mb-0">
         <thead><tr><th>Item</th><th>Situação</th><th>Detalhe</th></tr></thead>

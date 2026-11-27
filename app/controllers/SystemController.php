@@ -36,9 +36,10 @@ final class SystemController extends Controller
         $sent = $this->request->query('token');
         $detailed = $token !== null && is_string($sent) && hash_equals($token, $sent);
         if (!$detailed) {
-            $this->render('system/status', ['titulo' => 'Status', 'allOk' => $allOk, 'checks' => null], 'layout/minimo', $allOk ? 200 : 503);
+            $aviso = $sent === null ? null : ($token === null ? 'STATUS_TOKEN não está definido no .env.' : 'O token informado não confere com o STATUS_TOKEN atual do .env (se as chaves foram geradas de novo, o token também mudou).');
+            $this->render('system/status', ['titulo' => 'Status', 'allOk' => $allOk, 'checks' => null, 'avisoToken' => $aviso], 'layout/minimo', $allOk ? 200 : 503);
         }
-        $this->render('system/status', ['titulo' => 'Status detalhado', 'allOk' => $allOk, 'checks' => $checks], 'layout/minimo', $allOk ? 200 : 503);
+        $this->render('system/status', ['titulo' => 'Status detalhado', 'allOk' => $allOk, 'checks' => $checks, 'avisoToken' => null], 'layout/minimo', $allOk ? 200 : 503);
     }
 
     /**
